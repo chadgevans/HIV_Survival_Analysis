@@ -178,7 +178,7 @@ coxph_mod1 <- coxph( Surv(time,censor)~drug, data=hmohiv, method="efron") # bres
 summary(coxph_mod1)
 ```
 
-Proportional Hazards models and AFT models must be interpreted in a different way.  AFT models give the percentage change in survival time for a hazard model. Cox models give the percentage change in the hazard, following the formula here:
+Proportional Hazards models and AFT models must be interpreted in different ways.  AFT models give the percentage change in survival time. Cox models give the percentage change to the hazard at all time points, following the formula here:
 
 h(t)=h0(t)exp(β′x)
 
@@ -194,16 +194,16 @@ IV drug-use history is not significant once age is taken into consideration.  Th
 
 Here, for every year increase in subject's age, we expect the baseline hazard to be multiplied by a factor of 1.1.  This is equivalent to saying that each year of life increases the hazard of death by 10%.
 
-R output also provides the exponentiated negative coefficient.  To my understanding, that just allows you to compare the no-IV drug-use group relative to the baseline hazard of the IV drug-use group.  So, a drug-free history reduces your hazard of death by AIDS by 9.3% or 100 * (exp(-0.0974255)-1).
+R output also provides the exponentiated negative coefficient.  To my understanding, that just allows you to compare the no-IV drug-use group relative to the baseline hazard of the IV drug-use group.  So, a drug-free history reduces your hazard of death by AIDS by 9.3% or 100 * (exp(-0.0974255)-1) at all time points.
 
 I tested for an exponential function of age (age + I(age^2)), but the quadratic term was not significant.
 
 #### Summary of Cox Proportional Hazard Models
-If the proportional hazards assumption holds (or, is assumed to hold) then it is possible to estimate the effect parameter(s) without any consideration of the hazard function.  This is in contrast to parametric models (discussed next) that require explicitly modeling the hazard function. 
+If the proportional hazards assumption holds (or, is assumed to hold) then it is possible to estimate the effect of parameter(s) without any consideration of the baseline hazard function.  This is in contrast to parametric models (discussed next).
 
 ### Parametric Accelerated Failure Time (AFT) Models
 
-Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models.  First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations).  I think an exponential distribution implies a constant hazard.  Finally, I model with the log-logistic transformation.  This is one of the more popular transformations because, unlike the Weibull distribution, it can exhibit a non-monotonic hazard function which increases at early times and decreases at later times.  It also has a closed form solution that speeds up computation (important because of the consequences of censoring).  The advantage of the Weibull (and by extention the exponential), of course, is that it can be parameterised as a PH model or an AFT model.  Other possible functions include log normal, gamma and inverse gaussian functions.
+Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models.  First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations).  The exponential distribution implies a constant hazard rate.  Finally, I model with the log-logistic transformation.  This is one of the more popular transformations because, unlike the Weibull distribution, it can exhibit a non-monotonic hazard function which increases at early times and decreases at later times.  It also has a closed form solution that speeds up computation (important because of the consequences of censoring).  The advantage of the Weibull (and by extention the exponential), of course, is that it can be parameterised as a PH model or an AFT model.  In other words, the Weibull family can be interpreted as affecting the risk of event occurance or the duration of the lifespan.  Other less desirable functions include log normal, gamma and inverse gaussian functions.
 
 ```{r, message=FALSE}
 attach(hmohiv)
@@ -211,13 +211,24 @@ mod <- survreg( Surv(time, censor) ~ age, dist="exponential")
 summary(mod)
 ```
 
-For a one unit increase in age, we expect a 100*(exp(-0.0939)-1) percent change in the survival probability.  So, for each year, we expect survival time to decrease by about nine percent.  Because the coefficient is so small, you can actually just multiple the coef by 100 to find an approximation of the percentage change.
+For this first model, we parameterized log(t) using the exponential distribution as follows:
 
-The log-logistic distribution provides the most commonly used AFT model.
+In the case of AFT models, the impact of covariates is to have a multiplicative effect on survival time.  For a one unit increase in age, we expect a 100*(exp(-0.0939)-1) percent change in survival time.  So, for each year of age, we expect survival time to decrease by about nine percent.  Because the coefficient is so small, you can actually just multiply the coef by 100 to find an approximation of the percentage change.  It "accelerates" the life course by 9 percent, thereby shortening it.
+
+While this is a good baseline, the log logistic transformation is more commonly used, thanks to its computational efficiently and (relative) flexibility of functional form.
 ```{r}
 mod <- survreg( Surv(time, censor) ~ age, dist="loglogistic")
 summary(mod)
 ```
+
+In this case, the log logistic performs similarly to the exponential distribution.  Let's try a more complex model.
+
+```{r}
+mod <- survreg( Surv(time, censor) ~ age + drug + age*drug, dist="exponential")
+summary(mod)
+```
+
+Using the exponential family, we see that the results here are comparable to the findings of the Cox proportional hazards model of the previous section.  IV drug history does not impact the survival time.  A one unit increase in age reduces the survival time by about 9 percent.
 
 ### Extensions
 
@@ -227,6 +238,3 @@ We can also fit a model with different baseline survival shapes for each of the 
 mod <- survreg( Surv(time, censor) ~ age + strata(drug) + ridge(age, drug, theta=1), robust=TRUE, data=hmohiv, dist="loglogistic")
 summary(mod)
 ```
-
-
-Individuals receiving a diagnosis later in life have lower expected survival time.
