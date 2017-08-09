@@ -57,7 +57,7 @@ hmohiv
 The hmohiv dataset is from a hypothetical HMO-HIV+ study of 100 indiviudals who received an hiv diagnosis.  Every subject has an ID.  Time refers to the time between entry date (entdate) and end date (enddate).  We have the subject's age and whether or not he or she has a history of IV drug use.  We also know whether the individual was censored, where 1 indicates death from AIDS-related factors and 0 indicates the subject was alive at study end or lost to follow-up.
 
 ## Exploratory Analysis{#explore}
-Let's plot the time in study (along with censor status) and plot that against each participants age.  I also fit a superimposed exponential function--one option to describe these relatinoships.
+Let's plot the time in study (along with censor status) and plot that against each participant's age.  I also fit a superimposed exponential function--one option to describe these relatinoships.
 
 ```{r}
 mod <- survreg( Surv(time, censor) ~ age, dist="exponential")
@@ -102,6 +102,9 @@ detach()
 ```
 
 ### Kaplan-Meier (Product limit) Estimator of the Survival Curve{#KM}
+
+One major difference with the Life Table method: if observations are censored on the same month (or time unit) that events occurred, they are assumed to be at risk for the whole month (rather than just half the month).  This method is most appropriate for small data sets with exact times of censoring and events.  The KM estimator is a limiting form of the actuarial method, such that the time intervals are only as large as the units of measurement.
+
 ```{r KM_Estimote, message=FALSE}
 attach(hmohiv)
 hmohiv.surv <- survfit( Surv(time, censor)~ 1, conf.type="log", type="kaplan-meier")
@@ -160,27 +163,26 @@ Kaplan-Meier curves and logrank tests are most useful when the predictor variabl
 
 ## Regression Models for Survival Data
 
-There are two types of regression models: 1) semi-parametric models, the most common of which is the Cox model.  Proportional hazard models, like the Cox model, assume that the effect of a covariate is to multiply the hazard by some constant.  Hazards are “proportional” because the ratio of the hazards for any two individuals is constant, i.e., it does not depend on time.  2) parametric AFT models, where it is assumed that log(To) has a specific probability distribution.  AFT models assume that the effect of a covariate is to accelerate or decelerate the life course of a disease by some constant.
+There are two types of regression models: 1) semi-parametric models, the most common of which is the Cox model.  Proportional hazard models, like the Cox model, assume that the effect of a covariate is to multiply the hazard by some constant.  Hazards are “proportional” because the ratio of the hazards for any two individuals is constant, i.e., it does not depend on time.  2) parametric AFT models, where it is assumed that log(To) has a specific probability distribution, assume that the effect of a covariate is to accelerate or decelerate the life course of a disease by some constant.
 
 One case worth noting is the Weibull distribution (including the exponential distribution as a special case) can be parameterised as either a proportional hazards model or an AFT model.  It is the only family of distributions that possesses this property.
 
 ### Semi-parametric Cox Proportional Hazards Model
 
-The biggest advantage of the Cox model relates to its flexibilty of functional form.  Parametric models require a choice of functional form and often there is no good basis for which to choose.  In many instances this can be overly restrictive.  The Cox model requires no commitment to functional form.
+The biggest advantage of the Cox model relates to its flexibilty of functional form.  Parametric models require a choice of functional form and often there is no good basis for which to choose.  In many instances this can be overly restrictive.  The Cox model requires no commitment to functional form.  This is a semi-parametric model in that only the effects of covariates are parametrized, and not the hazard function. In other words, we don't make any distributional assumptions about survival times.
 
-First, we fit a simple Cox model predicting time to death from a binary predictor of IV drug use (whether or not the patient had a history of IV drug use).  We employ the efron method of dealing with ties, although other popular avaiable methods (e.g., breslow method) are available.  The Efron approximation is more accurate when dealing with tied death times, and is as efficient computationally.
+First, we fit a simple Cox model predicting time to death from a binary predictor of IV drug use (whether or not the patient had a history of IV drug use).  We employ the efron method of dealing with ties, although other popular methods (e.g., breslow method) are available.  The Efron approximation is more accurate when dealing with tied death times, and is as efficient computationally.
 
 ```{r, message=FALSE}
 coxph_mod1 <- coxph( Surv(time,censor)~drug, data=hmohiv, method="efron") # breslow option available
 summary(coxph_mod1)
 ```
 
-Proportional Hazards models and AFT models must be interpreted in a different way.  While AFT models give the percentage change in survival time
-o	for hazard model, Cox models give the percentage change in the hazard,  following the formula here:
+Proportional Hazards models and AFT models must be interpreted in a different way.  AFT models give the percentage change in survival time for a hazard model. Cox models give the percentage change in the hazard, following the formula here:
 
 h(t)=h0(t)exp(β′x)
 
-In this case, the effect of past IV drug use on time to death has an estimated coefficient of 0.8309. Exponentiated, this means that subjects with a history of IV drug multiply their baseline hazard (h0(t)) by a factor of 2.3.  Their risk of dying from AIDS is 130% (100*(e^beta -1) higher than subjects without IV drug histories.
+In this case, the effect of past IV drug use on time to death has an estimated coefficient of 0.8309. Exponentiated, this means that subjects with a history of IV drug multiply their baseline hazard (h0(t)) by a factor of 2.3.  Their risk of dying from AIDS is 130% (100*(e^beta -1) higher than subjects without IV drug histories (at all time points).  Importantly, Cox models state that this is the impact on the subject's hazard at any given time, t.  It does not, however, imply an expansion (or contraction) of the lifespan of the subject.
 
 Now let's build a more comprehensive model.
 ```{r, message=FALSE}
@@ -188,31 +190,20 @@ coxph_mod2 <- coxph( Surv(time,censor)~drug + age + drug*age, data=hmohiv ,metho
 summary(coxph_mod2)
 ```
 
-Drug history and interaction with age are not significant.  
+IV drug-use history is not significant once age is taken into consideration.  There must have been correlation with age that gave the impression drug-history mattered.  Maybe younger people know about the risks of IV drug use or maybe it was taboo to reveal it to researchers.  I suspect this is evidence of a successful campaign on the risk of IV drug-use that impacted drug use by younger generations.
 
-### Interpretation of Fitted Proportional Hazards Regression Models
+Here, for every year increase in subject's age, we expect the baseline hazard to be multiplied by a factor of 1.1.  This is equivalent to saying that each year of life increases the hazard of death by 10%.
 
-```{r}
-agecat.ph <- coxph( Surv(time, censor)~agecat, method="efron")
-summary(agecat.ph) 
-```
+R output also provides the exponentiated negative coefficient.  To my understanding, that just allows you to compare the no-IV drug-use group relative to the baseline hazard of the IV drug-use group.  So, a drug-free history reduces your hazard of death by AIDS by 9.3% or 100 * (exp(-0.0974255)-1).
 
-```{r}
-agecat.ph$var
-agecat<-recode(age, "20:29='D'; 30:34='B'; 35:39='C';40:54='A'", as.factor=T) # recode order of levels
-contrasts(agecat) <- contr.sum(levels(agecat)) 
-agecat.ph <- coxph( Surv(time, censor)~agecat, method="efron")
-summary(agecat.ph)
-detach()
-```
-
+I tested for an exponential function of age (age + I(age^2)), but the quadratic term was not significant.
 
 #### Summary of Cox Proportional Hazard Models
-The advantage of the Cox proportional hazard model is that it can accomodate many functional forms.
+If the proportional hazards assumption holds (or, is assumed to hold) then it is possible to estimate the effect parameter(s) without any consideration of the hazard function.  This is in contrast to parametric models (discussed next) that require explicitly modeling the hazard function. 
 
 ### Parametric Accelerated Failure Time (AFT) Models
 
-Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models.  First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations).  I think an exponential distribution implies a constant hazard.  Finally, I model with the log-logistic transformation.  Other possible functions include log normal, Weibull and gamma functions.
+Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models.  First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations).  I think an exponential distribution implies a constant hazard.  Finally, I model with the log-logistic transformation.  This is one of the more popular transformations because, unlike the Weibull distribution, it can exhibit a non-monotonic hazard function which increases at early times and decreases at later times.  It also has a closed form solution that speeds up computation (important because of the consequences of censoring).  The advantage of the Weibull (and by extention the exponential), of course, is that it can be parameterised as a PH model or an AFT model.  Other possible functions include log normal, gamma and inverse gaussian functions.
 
 ```{r, message=FALSE}
 attach(hmohiv)
