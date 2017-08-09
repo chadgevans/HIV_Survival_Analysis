@@ -1,0 +1,235 @@
+---
+title: "Survival Analysis of HMO-HIV+ Data"
+author: Chad Evans
+output: 
+  github_document:
+  toc: true
+always_allow_html: yes
+params:
+ d: !r Sys.Date() 
+---
+Built with `r getRversion()`.  Last run on `r params$d`.
+
+* [Configure](#config)
+    + Libraries
+    + directories
+    + data
+* [Exploratory Analysis](#explore)
+* [Nonparametric Approaches](#nonparam)
+    + [Life Table (Actuarial) Method](#LTMethod)
+    + [Kaplan-Meier (Product limit) Estimator](#KM)
+        + [Multiple Groups](#MG)
+            + [Patients with and without a history of IV drug use](#IV)
+            + [Patients in different age groups](#ages)
+        + [Statistical Test for differences](#stat)
+* [Regression Models](#reg)
+    + [Semi-parametric Cox Model](#semiparam)
+    + [Parametric Accelerated Failure Time (AFT) Models](#AFT)
+* [Extensions](#extentions)
+    + [Strata](#strata)
+    + [Robust Standard Errors](#robust)
+    + [Regularization](#ridge)
+
+
+### Configure{#config}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r directory, include=FALSE}
+data_directory="/Users/chadgevans/Documents/Chads_documents/Work/Graduate_School/UPenn/Penn_General/IES/Research_Assistance/MOOCs/Survival_Analysis/Tutorial"
+```
+
+```{r libraries, message=FALSE}
+library(tidyverse)
+library(survival)
+library(KMsurv)
+library(knitr)
+library(car)
+```
+
+```{r, message=FALSE}
+hmohiv<-read_csv(file.path(data_directory, "hmohiv.csv"))
+attach(hmohiv)
+hmohiv
+```
+
+The hmohiv dataset is from a hypothetical HMO-HIV+ study of 100 indiviudals who received an hiv diagnosis.  Every subject has an ID.  Time refers to the time between entry date (entdate) and end date (enddate).  We have the subject's age and whether or not he or she has a history of IV drug use.  We also know whether the individual was censored, where 1 indicates death from AIDS-related factors and 0 indicates the subject was alive at study end or lost to follow-up.
+
+## Exploratory Analysis{#explore}
+Let's plot the time in study (along with censor status) and plot that against each participants age.  I also fit a superimposed exponential function--one option to describe these relatinoships.
+
+```{r}
+mod <- survreg( Surv(time, censor) ~ age, dist="exponential")
+pred <- predict(mod, type="response") 
+ord<-order(age)
+age_ord<-age[ord]
+pred_ord<-pred[ord]
+plot(age, time, pch=c(0,1), main="Expected Survival Time by Age of Diagnosis")
+lines(age_ord, pred_ord)
+legend(40, 60, c("Censor=1", "Censor=0"), pch=c(0,1))
+```
+
+
+## Nonparametric Approaches{#nonparam}
+### Life Table (Actuarial) Method{#LTMethod}
+
+```{r Life_table_munge, message=FALSE}
+intervals<-6 # number of intervals for life table
+hmohiv$interval<-floor(hmohiv$time/intervals) # assigns intervals  
+ltab.data<-hmohiv %>%
+  select(interval,censor) %>%
+  group_by(interval) %>%
+  summarise(die=sum(censor), count=n())
+detach()
+```
+
+```{r Life_Table, message=FALSE}
+attach(ltab.data)
+int<-ltab.data$interval
+int[length(ltab.data$interval)+1]=NA #length is 1 + nlost and nevent 
+nevent=ltab.data$die # the number of ind.s who experienced the event
+nlost=ltab.data$count - ltab.data$die # the number of ind.s lost/not followed or withdrawn
+lifetable<-lifetab(int, 100, nlost, nevent)
+kable(lifetable)
+```
+
+Variance estimated using Greenwood's formula.
+
+```{r}
+plot(int[1:11], lifetable[,5], type="s", xlab="Survival time in (6 month intervals)", ylab="Proportion Surviving", main="Life Table Survival Curve")
+detach()
+```
+
+### Kaplan-Meier (Product limit) Estimator of the Survival Curve{#KM}
+```{r KM_Estimote, message=FALSE}
+attach(hmohiv)
+hmohiv.surv <- survfit( Surv(time, censor)~ 1, conf.type="log", type="kaplan-meier")
+plot (hmohiv.surv,  xlab="Months Since Diagnosis", ylab="Survival Probability", main="Probability of Survival by Time Since Diagnosis")
+```
+
+We can plot this figure with confidence intervals as well.  The default (above) is log, which calculates intervals based on the cumulative hazard or log(survival).  Other options include plain or log-log.  IDRE has code for another method called loghall, which renders results very similar to log.
+
+### Multiple Groups
+#### Comparing patients with and without a history of IV drug use
+##### Fitting the Model
+```{r Multiple_Groups}
+drug.surv <- survfit( Surv(time, censor)~ strata(drug), data=hmohiv, type="kaplan-meier")
+print(drug.surv)
+
+plot(drug.surv, lty=c(1,3), xlab='Time', ylab='Survival Probability', main="Probability of Survival by IV drug-use history") 
+legend(40, 1.0, c('IV Drugs – No', 'IV Drugs – Yes') , lty=c(1,3))
+```
+
+##### Statistical Test for differences
+
+The following function implements the G-rho family of Harrington and Fleming (1982), with weights on each death of S(t)^rho, where S is the Kaplan-Meier estimate of survival. With rho = 0 this is the log-rank or Mantel-Haenszel test, and with rho = 1 it is equivalent to the Peto & Peto modification of the Gehan-Wilcoxon test.  Allison also discusses other possibilities, including the Wilcoxon test, the Cox test of equality, the Tarone-Ware test of equality, the Peto-Peto-Prentice test of equality and the Generalized Fleming-Harrington test of equality.
+
+```{r, message=FALSE}
+survdiff(Surv(time, censor) ~ drug, data=hmohiv,rho=0) # log-rank or Mantel-Haenszel test
+```
+
+The null hypothesis for a logrank test is that the groups have the same survival.  In this case, the Chi-square statistic is significant.  The survival curve, therefore, differs based on whether the patient has a history of IV drug use.  But the KM approach is not able to estimate survival adjusted for covariates.  For this reason, we will return to the semi-parametric Cox Proportional hazards model and also parametric survival models shortly.
+
+#### Comparing patients in different age groups
+##### Fitting the Model
+
+First, we fit the KM model.
+
+```{r}
+agecat <- cut(age, c(19.9, 29, 34, 39, 54.1))
+age.surv <- survfit( Surv(time, censor)~ strata(agecat), data=hmohiv, type="kaplan-meier")
+print(age.surv)
+
+plot(age.surv, lty=c(6, 1, 4, 3), xlab="Time", ylab="Survival Probability")
+legend(40, 1.0, c("Ages 20-29", "Ages 30-34", "Ages 35-39", "Ages 40-54"), lty=c(6, 1, 4, 3)) 
+```
+
+Younger patients survive longer.  We can test to be sure the survival curves are different using the log rank (or other) test.
+
+##### Statistical tests of differences
+```{r}
+survdiff(Surv(time, censor) ~ agecat, rho=0)
+```
+
+The log rank chi-square test provides statistical evidence that the survival curves differ by age group.
+
+#### Summary of Nonparametric models
+
+Kaplan-Meier curves and logrank tests are most useful when the predictor variable is categorical (e.g., drug vs. placebo), or takes a small number of values (e.g., drug doses 0, 20, 50, and 100 mg/day) that can be treated as categorical. The logrank test and KM curves don’t work easily with quantitative predictors. For quantitative predictor variables, we turn to alternative methods like the Cox proportional hazards model or Accelerated Failure Time (AFT) models. Such models work also with categorical predictor variables, encoded as {0,1} indicator or dummy variables. 
+
+## Regression Models for Survival Data
+
+There are two types of regression models: 1) semi-parametric models, the most common of which is the Cox model.  Proportional hazard models, like the Cox model, assume that the effect of a covariate is to multiply the hazard by some constant.  Hazards are “proportional” because the ratio of the hazards for any two individuals is constant, i.e., it does not depend on time.  2) parametric AFT models, where it is assumed that log(To) has a specific probability distribution.  AFT models assume that the effect of a covariate is to accelerate or decelerate the life course of a disease by some constant.
+
+One case worth noting is the Weibull distribution (including the exponential distribution as a special case) can be parameterised as either a proportional hazards model or an AFT model.  It is the only family of distributions that possesses this property.
+
+### Semi-parametric Cox Proportional Hazards Model
+
+The biggest advantage of the Cox model relates to its flexibilty of functional form.  Parametric models require a choice of functional form and often there is no good basis for which to choose.  In many instances this can be overly restrictive.  The Cox model requires no commitment to functional form.
+
+First, we fit a simple Cox model predicting time to death from a binary predictor of IV drug use (whether or not the patient had a history of IV drug use).  We employ the efron method of dealing with ties, although other popular avaiable methods (e.g., breslow method) are available.  The Efron approximation is more accurate when dealing with tied death times, and is as efficient computationally.
+
+```{r, message=FALSE}
+coxph_mod1 <- coxph( Surv(time,censor)~drug, data=hmohiv, method="efron") # breslow option available
+summary(coxph_mod1)
+```
+
+The effect of past IV drug use on time to death has a coefficient of 0.8309. This means that X.
+
+Now let's build a more comprehensive model.
+```{r, message=FALSE}
+coxph_mod2 <- coxph( Surv(time,censor)~drug + age + drug*age, data=hmohiv ,method="efron") # breslow option available
+summary(coxph_mod2)
+```
+
+Drug history and interaction with age are not significant.  
+
+### Interpretation of Fitted Proportional Hazards Regression Models
+
+```{r}
+agecat.ph <- coxph( Surv(time, censor)~agecat, method="efron")
+summary(agecat.ph) 
+```
+
+```{r}
+agecat.ph$var
+agecat<-recode(age, "20:29='D'; 30:34='B'; 35:39='C';40:54='A'", as.factor=T) # recode order of levels
+contrasts(agecat) <- contr.sum(levels(agecat)) 
+agecat.ph <- coxph( Surv(time, censor)~agecat, method="efron")
+summary(agecat.ph)
+detach()
+```
+
+
+#### Summary of Cox Proportional Hazard Models
+The advantage of the Cox proportional hazard model is that it can accomodate many functional forms.
+
+### Parametric Accelerated Failure Time (AFT) Models
+
+Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models.  First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations).  I think an exponential distribution implies a constant hazard.  Finally, I model with the log-logistic transformation.  Other possible functions include log normal, Weibull and gamma functions.
+
+```{r, message=FALSE}
+attach(hmohiv)
+mod <- survreg( Surv(time, censor) ~ age, dist="exponential")
+summary(mod)
+```
+
+I believe the proper interpretation is that, for a one unit increase in age, we expect a 100*(exp(-0.0939)-1) percent change in the survival probability.
+
+The log-logistic distribution provides the most commonly used AFT model.
+```{r}
+mod <- survreg( Surv(time, censor) ~ age, dist="loglogistic")
+summary(mod)
+```
+
+### Extensions
+
+We can also fit a model with different baseline survival shapes for each of the two drug groups (i.e., two different scale parameters).  Here, I also robustified the standard errors using the robust argument.  I also included a ridge penalty on both predictors to prevent overfitting.
+
+```{r}
+mod <- survreg( Surv(time, censor) ~ age + strata(drug) + ridge(age, drug, theta=1), robust=TRUE, data=hmohiv, dist="loglogistic")
+summary(mod)
+```
+
+
+Individuals receiving a diagnosis later in life have lower expected survival time.
