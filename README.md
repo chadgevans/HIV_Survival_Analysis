@@ -1,1 +1,1 @@
-# HIV_Survival_Analysis
+The hmohiv dataset is from a hypothetical HMO-HIV+ study of 100 indiviudals who received an hiv diagnosis. Every subject has an ID. Time refers to the time between entry date (entdate) and end date (enddate). We have the subject's age and whether or not he or she has a history of IV drug use. We also know whether the individual was censored, where 1 indicates death from AIDS-related factors and 0 indicates the subject was alive at study end or lost to follow-up.
