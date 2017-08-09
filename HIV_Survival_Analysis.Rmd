@@ -35,6 +35,7 @@ Built with `r getRversion()`.  Last run on `r params$d`.
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 ```{r directory, include=FALSE}
 data_directory="/Users/chadgevans/Documents/Chads_documents/Work/Graduate_School/UPenn/Penn_General/IES/Research_Assistance/MOOCs/Survival_Analysis/Tutorial"
 ```
@@ -174,7 +175,12 @@ coxph_mod1 <- coxph( Surv(time,censor)~drug, data=hmohiv, method="efron") # bres
 summary(coxph_mod1)
 ```
 
-The effect of past IV drug use on time to death has a coefficient of 0.8309. This means that X.
+Proportional Hazards models and AFT models must be interpreted in a different way.  While AFT models give the percentage change in survival time
+o	for hazard model, Cox models give the percentage change in the hazard,  following the formula here:
+
+h(t)=h0(t)exp(β′x)
+
+In this case, the effect of past IV drug use on time to death has an estimated coefficient of 0.8309. Exponentiated, this means that subjects with a history of IV drug multiply their baseline hazard (h0(t)) by a factor of 2.3.  Their risk of dying from AIDS is 130% (100*(e^beta -1) higher than subjects without IV drug histories.
 
 Now let's build a more comprehensive model.
 ```{r, message=FALSE}
@@ -214,7 +220,7 @@ mod <- survreg( Surv(time, censor) ~ age, dist="exponential")
 summary(mod)
 ```
 
-I believe the proper interpretation is that, for a one unit increase in age, we expect a 100*(exp(-0.0939)-1) percent change in the survival probability.
+For a one unit increase in age, we expect a 100*(exp(-0.0939)-1) percent change in the survival probability.  So, for each year, we expect survival time to decrease by about nine percent.  Because the coefficient is so small, you can actually just multiple the coef by 100 to find an approximation of the percentage change.
 
 The log-logistic distribution provides the most commonly used AFT model.
 ```{r}
