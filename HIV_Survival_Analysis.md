@@ -73,7 +73,7 @@ lines(age_ord, pred_ord)
 legend(40, 60, c("Censor=1", "Censor=0"), pch=c(0,1))
 ```
 
-![](HIV_Survival_Analysis_files/figure-markdown_github-ascii_identifiers/unnamed-chunk-2-1.png)
+![](graphs/unnamed-chunk-2-1.png)
 
 Nonparametric Approaches
 ------------------------
@@ -120,7 +120,7 @@ Variance estimated using Greenwood's formula.
 plot(int[1:11], lifetable[,5], type="s", xlab="Survival time in (6 month intervals)", ylab="Proportion Surviving", main="Life Table Survival Curve")
 ```
 
-![](HIV_Survival_Analysis_files/figure-markdown_github-ascii_identifiers/unnamed-chunk-3-1.png)
+![](graphs/unnamed-chunk-3-1.png)
 
 ``` r
 detach()
@@ -136,7 +136,7 @@ hmohiv.surv <- survfit( Surv(time, censor)~ 1, conf.type="log", type="kaplan-mei
 plot (hmohiv.surv,  xlab="Months Since Diagnosis", ylab="Survival Probability", main="Probability of Survival by Time Since Diagnosis")
 ```
 
-![](HIV_Survival_Analysis_files/figure-markdown_github-ascii_identifiers/KM_Estimote-1.png)
+![](graphs/KM_Estimote-1.png)
 
 We can plot this figure with confidence intervals as well. The default (above) is log, which calculates intervals based on the cumulative hazard or log(survival). Other options include plain or log-log. IDRE has code for another method called loghall, which renders results very similar to log.
 
@@ -163,7 +163,7 @@ plot(drug.surv, lty=c(1,3), xlab='Time', ylab='Survival Probability', main="Prob
 legend(40, 1.0, c('IV Drugs – No', 'IV Drugs – Yes') , lty=c(1,3))
 ```
 
-![](HIV_Survival_Analysis_files/figure-markdown_github-ascii_identifiers/Multiple_Groups-1.png)
+![](graphs/Multiple_Groups-1.png)
 
 ##### Statistical Test for differences
 
@@ -211,7 +211,7 @@ plot(age.surv, lty=c(6, 1, 4, 3), xlab="Time", ylab="Survival Probability")
 legend(40, 1.0, c("Ages 20-29", "Ages 30-34", "Ages 35-39", "Ages 40-54"), lty=c(6, 1, 4, 3)) 
 ```
 
-![](HIV_Survival_Analysis_files/figure-markdown_github-ascii_identifiers/unnamed-chunk-5-1.png)
+![](graphs/unnamed-chunk-5-1.png)
 
 Younger patients survive longer. We can test to be sure the survival curves are different using the log rank (or other) test.
 
@@ -275,7 +275,7 @@ summary(coxph_mod1)
     ## Wald test            = 11.81  on 1 df,   p=0.0005903
     ## Score (logrank) test = 12.33  on 1 df,   p=0.0004464
 
-Proportional Hazards models and AFT models must be interpreted in a different way. AFT models give the percentage change in survival time for a hazard model. Cox models give the percentage change in the hazard, following the formula here:
+Proportional Hazards models and AFT models must be interpreted in different ways. AFT models give the percentage change in survival time. Cox models give the percentage change to the hazard at all time points, following the formula here:
 
 h(t)=h0(t)exp(β′x)
 
@@ -316,17 +316,17 @@ IV drug-use history is not significant once age is taken into consideration. The
 
 Here, for every year increase in subject's age, we expect the baseline hazard to be multiplied by a factor of 1.1. This is equivalent to saying that each year of life increases the hazard of death by 10%.
 
-R output also provides the exponentiated negative coefficient. To my understanding, that just allows you to compare the no-IV drug-use group relative to the baseline hazard of the IV drug-use group. So, a drug-free history reduces your hazard of death by AIDS by 9.3% or 100 \* (exp(-0.0974255)-1).
+R output also provides the exponentiated negative coefficient. To my understanding, that just allows you to compare the no-IV drug-use group relative to the baseline hazard of the IV drug-use group. So, a drug-free history reduces your hazard of death by AIDS by 9.3% or 100 \* (exp(-0.0974255)-1) at all time points.
 
 I tested for an exponential function of age (age + I(age^2)), but the quadratic term was not significant.
 
 #### Summary of Cox Proportional Hazard Models
 
-If the proportional hazards assumption holds (or, is assumed to hold) then it is possible to estimate the effect parameter(s) without any consideration of the hazard function. This is in contrast to parametric models (discussed next) that require explicitly modeling the hazard function.
+If the proportional hazards assumption holds (or, is assumed to hold) then it is possible to estimate the effect of parameter(s) without any consideration of the baseline hazard function. This is in contrast to parametric models (discussed next).
 
 ### Parametric Accelerated Failure Time (AFT) Models
 
-Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models. First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations). I think an exponential distribution implies a constant hazard. Finally, I model with the log-logistic transformation. This is one of the more popular transformations because, unlike the Weibull distribution, it can exhibit a non-monotonic hazard function which increases at early times and decreases at later times. It also has a closed form solution that speeds up computation (important because of the consequences of censoring). The advantage of the Weibull (and by extention the exponential), of course, is that it can be parameterised as a PH model or an AFT model. Other possible functions include log normal, gamma and inverse gaussian functions.
+Next, we fit a parametric survival regression model. These are location-scale models for an arbitrary transform of the time variable; the most common cases use a log transformation, leading to accelerated failure time models. First, we assume the outcome has an exponential distribution--a good baseline distribution to start with (simplifies calculations). The exponential distribution implies a constant hazard rate. Finally, I model with the log-logistic transformation. This is one of the more popular transformations because, unlike the Weibull distribution, it can exhibit a non-monotonic hazard function which increases at early times and decreases at later times. It also has a closed form solution that speeds up computation (important because of the consequences of censoring). The advantage of the Weibull (and by extention the exponential), of course, is that it can be parameterised as a PH model or an AFT model. In other words, the Weibull family can be interpreted as affecting the risk of event occurance or the duration of the lifespan. Other less desirable functions include log normal, gamma and inverse gaussian functions.
 
 ``` r
 attach(hmohiv)
@@ -349,9 +349,11 @@ summary(mod)
     ## Number of Newton-Raphson Iterations: 4 
     ## n= 100
 
-For a one unit increase in age, we expect a 100\*(exp(-0.0939)-1) percent change in the survival probability. So, for each year, we expect survival time to decrease by about nine percent. Because the coefficient is so small, you can actually just multiple the coef by 100 to find an approximation of the percentage change.
+For this first model, we parameterized log(t) using the exponential distribution as follows:
 
-The log-logistic distribution provides the most commonly used AFT model.
+In the case of AFT models, the impact of covariates is to have a multiplicative effect on survival time. For a one unit increase in age, we expect a 100\*(exp(-0.0939)-1) percent change in survival time. So, for each year of age, we expect survival time to decrease by about nine percent. Because the coefficient is so small, you can actually just multiply the coef by 100 to find an approximation of the percentage change. It "accelerates" the life course by 9 percent, thereby shortening it.
+
+While this is a good baseline, the log logistic transformation is more commonly used, thanks to its computational efficiently and (relative) flexibility of functional form.
 
 ``` r
 mod <- survreg( Surv(time, censor) ~ age, dist="loglogistic")
@@ -373,6 +375,38 @@ summary(mod)
     ##  Chisq= 23.16 on 1 degrees of freedom, p= 1.5e-06 
     ## Number of Newton-Raphson Iterations: 4 
     ## n= 100
+
+In this case, the log logistic performs similarly to the exponential distribution. Let's try a more complex model.
+
+``` r
+mod <- survreg( Surv(time, censor) ~ age + drug + age*drug, dist="exponential")
+summary(mod)
+```
+
+    ## 
+    ## Call:
+    ## survreg(formula = Surv(time, censor) ~ age + drug + age * drug, 
+    ##     dist = "exponential")
+    ##                Value Std. Error      z        p
+    ## (Intercept)  6.22124     0.7857  7.918 2.41e-15
+    ## age         -0.09401     0.0212 -4.434 9.26e-06
+    ## drug        -1.17608     1.2112 -0.971 3.32e-01
+    ## age:drug     0.00456     0.0327  0.140 8.89e-01
+    ## 
+    ## Scale fixed at 1 
+    ## 
+    ## Exponential distribution
+    ## Loglik(model)= -265.4   Loglik(intercept only)= -292.3
+    ##  Chisq= 53.74 on 3 degrees of freedom, p= 1.3e-11 
+    ## Number of Newton-Raphson Iterations: 4 
+    ## n= 100
+
+Using the exponential family, we see that the results here are comparable to the findings of the Cox proportional hazards model of the previous section. IV drug history does not impact the survival time. A one unit increase in age reduces the survival time by about 9 percent.
+
+Time to Event
+-------------
+
+To predict the mean time to event, use the following:
 
 ### Extensions
 
@@ -405,5 +439,3 @@ summary(mod)
     ## (Loglikelihood assumes independent observations)
     ## Number of Newton-Raphson Iterations: 1 4 
     ## n= 100
-
-Individuals receiving a diagnosis later in life have lower expected survival time.

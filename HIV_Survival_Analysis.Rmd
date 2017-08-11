@@ -33,8 +33,7 @@ Built with `r getRversion()`.  Last run on `r params$d`.
 
 ### Configure{#config}
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, fig.width=10, fig.height=10, fig.path='graphs/', cache.path ='cache/')
 
 ```{r directory, include=FALSE}
 data_directory="/Users/chadgevans/Documents/Chads_documents/Work/Graduate_School/UPenn/Penn_General/IES/Research_Assistance/MOOCs/Survival_Analysis/Tutorial"
@@ -229,6 +228,9 @@ summary(mod)
 ```
 
 Using the exponential family, we see that the results here are comparable to the findings of the Cox proportional hazards model of the previous section.  IV drug history does not impact the survival time.  A one unit increase in age reduces the survival time by about 9 percent.
+
+## Time to Event
+To predict the mean time to event, use the following:
 
 ### Extensions
 
